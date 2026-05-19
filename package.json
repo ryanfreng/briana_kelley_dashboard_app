@@ -1,0 +1,18 @@
+{
+  "name": "briana-kelley-dashboard",
+  "version": "1.0.0",
+  "description": "Client dashboard for Briana Kelley Realty, reading from Notion.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "express": "^4.19.2"
+  }
+}
