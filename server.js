@@ -20,7 +20,7 @@ const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 // -------------------------------------------------------------
 // Client registry. Add new retainer clients by appending entries.
-// Database IDs are shared across clients (workbook, social cal,
+// Data source IDs are shared across clients (workbook, social cal,
 // master cal, tasks); project / client / brandscript IDs are
 // per-client. All values come from environment variables.
 // -------------------------------------------------------------
@@ -29,20 +29,55 @@ const CLIENTS = {
     projectId:        process.env.BRIANA_PROJECT_ID,
     clientId:         process.env.BRIANA_CLIENT_ID,
     brandscriptId:    process.env.BRIANA_BRANDSCRIPT_ID,
-    workbookDbId:     process.env.RETAINER_WORKBOOK_DB_ID,
-    socialCalDbId:    process.env.SOCIAL_MEDIA_CALENDAR_DB_ID || process.env.SOCIAL_MEDIA_CALENDAR_DATA_SOURCE_ID,
-    masterCalDbId:    process.env.MASTER_CALENDAR_DB_ID || process.env.MASTER_CALENDAR_DATA_SOURCE_ID,
-    tasksDbId:        process.env.TASKS_DB_ID || process.env.TASKS_DATA_SOURCE_ID,
+    // Notion data source IDs (UUID with dashes). In Notion's current
+    // API a database can have multiple data sources, and queries go
+    // through the data source endpoint.
+    workbookDsId:     process.env.RETAINER_WORKBOOK_DATA_SOURCE_ID,
+    socialCalDsId:    process.env.SOCIAL_MEDIA_CALENDAR_DATA_SOURCE_ID,
+    masterCalDsId:    process.env.MASTER_CALENDAR_DATA_SOURCE_ID,
+    tasksDsId:        process.env.TASKS_DATA_SOURCE_ID,
     displayName:      'Briana Kelley Realty',
     tagline:          'List with strategy. Close with confidence.',
-    retainer:         'Accelerate Retainer · Phase 2 (Trust & Conversion)',
+    retainer:         'Accelerate Retainer Phase 2 (Trust & Conversion)',
     teamLead:         'Ryan Freng (Creative Director)',
   },
 };
 
+// Notion API version that exposes the data sources endpoints.
+const NOTION_VERSION = '2025-09-03';
+
+async function queryDataSource(dataSourceId, body = {}) {
+  const r = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.NOTION_TOKEN}`,
+      'Notion-Version': NOTION_VERSION,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let err = {};
+    try { err = await r.json(); } catch (_) {}
+    throw new Error(`Notion data source query failed (${r.status}): ${err.message || r.statusText}`);
+  }
+  return r.json();
+}
+
+// Wraps a fetcher so a single failure (e.g. one database not shared with
+// the integration, or a property name mismatch) doesn't crash the whole
+// response. The other sections still render.
+async function safeSection(label, fn, fallback) {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error(`[section:${label}] ${err.message}`);
+    return fallback;
+  }
+}
+
 // -------------------------------------------------------------
-// In-memory cache. Same 5-minute TTL as the Vercel CDN cache
-// recommendation in the implementation guide.
+// In-memory cache, 5 minute TTL.
 // -------------------------------------------------------------
 const CACHE = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -65,13 +100,10 @@ function setCached(key, value) {
 // Routes
 // -------------------------------------------------------------
 
-// Static dashboards live under public/clients/<slug>/
 app.use('/clients', express.static(path.join(__dirname, 'public', 'clients')));
 
-// Health check (useful for Sevalla deploy readiness)
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
-// Root: list known clients (handy while we only have one)
 app.get('/', (_req, res) => {
   const slugs = Object.keys(CLIENTS);
   res.type('html').send(
@@ -80,7 +112,6 @@ app.get('/', (_req, res) => {
   );
 });
 
-// The proxy endpoint
 app.get('/api/client-dashboard/:slug', async (req, res) => {
   const slug = req.params.slug;
   const cfg = CLIENTS[slug];
@@ -123,12 +154,13 @@ async function assembleDashboard(cfg) {
     reports,
     approvals,
   ] = await Promise.all([
-    cfg.projectId ? notion.pages.retrieve({ page_id: cfg.projectId }) : Promise.resolve(null),
-    fetchShoots(cfg),
-    fetchInFlight(cfg),
-    fetchRecentContent(cfg),
-    fetchReports(cfg),
-    fetchApprovals(cfg),
+    safeSection('projectPage', () =>
+      cfg.projectId ? notion.pages.retrieve({ page_id: cfg.projectId }) : Promise.resolve(null), null),
+    safeSection('shoots',         () => fetchShoots(cfg),         { upcoming: [], recent: [] }),
+    safeSection('inFlight',       () => fetchInFlight(cfg),       []),
+    safeSection('recentContent',  () => fetchRecentContent(cfg),  []),
+    safeSection('reports',        () => fetchReports(cfg),        { current: null, previous: null }),
+    safeSection('approvals',      () => fetchApprovals(cfg),      []),
   ]);
 
   return {
@@ -157,10 +189,9 @@ async function assembleDashboard(cfg) {
 // Master Calendar -> Shoots
 // -------------------------------------------------------------
 async function fetchShoots(cfg) {
-  if (!cfg.masterCalDbId || !cfg.projectId) return { upcoming: [], recent: [] };
+  if (!cfg.masterCalDsId || !cfg.projectId) return { upcoming: [], recent: [] };
 
-  const r = await notion.databases.query({
-    database_id: cfg.masterCalDbId,
+  const r = await queryDataSource(cfg.masterCalDsId, {
     filter: {
       and: [
         { property: 'Project', relation: { contains: cfg.projectId } },
@@ -194,10 +225,9 @@ function toShoot(p) {
 // Master Calendar -> In Flight (non-shoot work)
 // -------------------------------------------------------------
 async function fetchInFlight(cfg) {
-  if (!cfg.masterCalDbId || !cfg.projectId) return [];
+  if (!cfg.masterCalDsId || !cfg.projectId) return [];
 
-  const r = await notion.databases.query({
-    database_id: cfg.masterCalDbId,
+  const r = await queryDataSource(cfg.masterCalDsId, {
     filter: {
       and: [
         { property: 'Project',  relation: { contains: cfg.projectId } },
@@ -226,15 +256,14 @@ async function fetchInFlight(cfg) {
 // Social Calendar -> Recent Content (last 30 days)
 // -------------------------------------------------------------
 async function fetchRecentContent(cfg) {
-  if (!cfg.socialCalDbId || !cfg.projectId) return [];
+  if (!cfg.socialCalDsId || !cfg.projectId) return [];
 
   const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const r = await notion.databases.query({
-    database_id: cfg.socialCalDbId,
+  const r = await queryDataSource(cfg.socialCalDsId, {
     filter: {
       and: [
         { property: '🎉 Project', relation: { contains: cfg.projectId } },
-        { property: 'Publish Date',         date: { on_or_after: since } },
+        { property: 'Publish Date',         date:     { on_or_after: since } },
       ],
     },
     sorts: [{ property: 'Publish Date', direction: 'descending' }],
@@ -253,10 +282,9 @@ async function fetchRecentContent(cfg) {
 // Retainer Workbook -> current + previous Monthly Report
 // -------------------------------------------------------------
 async function fetchReports(cfg) {
-  if (!cfg.workbookDbId || !cfg.clientId) return { current: null, previous: null };
+  if (!cfg.workbookDsId || !cfg.clientId) return { current: null, previous: null };
 
-  const r = await notion.databases.query({
-    database_id: cfg.workbookDbId,
+  const r = await queryDataSource(cfg.workbookDsId, {
     filter: {
       and: [
         { property: 'Type',   select:   { equals: 'Monthly Report' } },
@@ -311,10 +339,9 @@ async function assembleReport(page) {
 // Tasks -> Waiting on Client
 // -------------------------------------------------------------
 async function fetchApprovals(cfg) {
-  if (!cfg.tasksDbId || !cfg.projectId) return [];
+  if (!cfg.tasksDsId || !cfg.projectId) return [];
 
-  const r = await notion.databases.query({
-    database_id: cfg.tasksDbId,
+  const r = await queryDataSource(cfg.tasksDsId, {
     filter: {
       and: [
         { property: 'Project', relation: { contains: cfg.projectId } },
@@ -395,7 +422,7 @@ async function parseTopPostsTable(blocks) {
   const table = blocks.find(b => b.type === 'table');
   if (!table) return [];
   const rows = await readTableRows(table.id);
-  const [, ...data] = rows; // drop header row
+  const [, ...data] = rows;
   return data.map((row, i) => ({
     rank:       row[0] || String(i + 1),
     title:      row[1] || '',
@@ -448,16 +475,14 @@ async function readTableRows(tableBlockId) {
 }
 
 // =============================================================
-// Static config (kept here for the same reason the guide does:
-// these change rarely, parsing them adds complexity for little
-// value). Edit and redeploy when they change.
+// Static config (these change rarely; edit and redeploy)
 // =============================================================
 
 function getStaticBrandscript() {
   return {
     sentence:
       'Kelley Realty helps homeowners sell lake homes and $500K+ properties with a clear strategy ' +
-      'built before the home ever hits the market — so sellers walk away confident they received ' +
+      'built before the home ever hits the market, so sellers walk away confident they received ' +
       'the strongest possible outcome.',
     personas: [
       'Legacy Sellers (Roger & Linda)',
@@ -513,7 +538,7 @@ function formatDateRange(date) {
   const start = new Date(date.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   if (!date.end) return start;
   const end = new Date(date.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${start}–${end}`;
+  return `${start} to ${end}`;
 }
 
 function mapStatus(notionStatus) {
@@ -531,13 +556,13 @@ function leadingIcon(title) {
 
 function iconToCategory(icon) {
   return {
-    '🎥': 'Shoots',     // handled separately
+    '🎥': 'Shoots',
     '🖥️': 'Website',
-    '🖥':       'Website',
-    '📱':       'Social media',
-    '📼':       'Editing',
-    '✏️':       'Messaging',
-    '✏':             'Messaging',
-    '💰':       'Ads',
+    '🖥':  'Website',
+    '📱':  'Social media',
+    '📼':  'Editing',
+    '✏️': 'Messaging',
+    '✏':  'Messaging',
+    '💰':  'Ads',
   }[icon] || null;
 }
