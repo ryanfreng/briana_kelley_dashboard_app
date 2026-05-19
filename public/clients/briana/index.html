@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Briana Kelley Realty | Backflip Dashboard</title>
+  <style>
+    :root {
+      --ink: #1f2330;
+      --ink-muted: #5b6276;
+      --paper: #f7f6f1;
+      --card: #ffffff;
+      --rule: #e6e3d8;
+      --accent: #b4895a;
+      --ontrack: #2f8f53;
+      --watch: #c89610;
+      --offtrack: #c0392b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    main { max-width: 1024px; margin: 0 auto; padding: 32px 24px 96px; }
+    header { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 32px; }
+    h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--ink-muted); font-weight: 600; margin: 40px 0 12px;
+    }
+    h3 { font-size: 18px; margin: 0 0 6px; }
+    .tagline { color: var(--ink-muted); font-style: italic; margin: 0; }
+    .meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; color: var(--ink-muted); margin-top: 12px; }
+    .card {
+      background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+      padding: 20px 22px; margin-bottom: 12px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 720px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .metric .num { font-size: 28px; font-weight: 600; }
+    .metric .label { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .status-pill {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+    }
+    .status-ontrack { background: #e3f1e8; color: var(--ontrack); }
+    .status-watch { background: #fbf1d6; color: var(--watch); }
+    .status-offtrack { background: #f7dad6; color: var(--offtrack); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    th { font-weight: 600; color: var(--ink-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .muted { color: var(--ink-muted); }
+    .empty { color: var(--ink-muted); font-style: italic; padding: 8px 0; }
+    .center { text-align: center; padding: 80px 0; color: var(--ink-muted); }
+    a { color: var(--accent); }
+    footer {
+      margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--rule);
+      font-size: 13px; color: var(--ink-muted); display: flex; gap: 24px; flex-wrap: wrap;
+    }
+    /* This minimal page is here so you can verify the proxy works.
+       Once it does, drop your full 05_Client_Dashboard_Briana.html in
+       place of this file (keeping the fetch logic shown in
+       INTEGRATE_EXISTING_HTML.md). */
+  </style>
+</head>
+<body>
+  <main id="app">
+    <div class="center">Loading dashboard…</div>
+  </main>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+    const fmtDate = (s) => s ? new Date(s).toLocaleDateString('en-US',
+      { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    const num = (n) => (n === null || n === undefined) ? 'N/A' : n.toLocaleString('en-US');
+
+    function statusPill(s) {
+      const cls = s === 'offtrack' ? 'offtrack' : s === 'watch' ? 'watch' : 'ontrack';
+      const label = cls === 'offtrack' ? 'Off Track' : cls === 'watch' ? 'Watch' : 'On Track';
+      return `<span class="status-pill status-${cls}">${label}</span>`;
+    }
+
+    function renderMetricCards(m) {
+      if (!m) return '';
+      const items = [
+        ['FB Reach', num(m.fbReach)],
+        ['FB Impressions', num(m.fbImpressions)],
+        ['FB Engagement', num(m.fbEngagement)],
+        ['FB Followers', num(m.fbFollowers)],
+        ['IG Followers', num(m.igFollowers)],
+        ['IG Engagement', num(m.igEngagement)],
+        ['TikTok Views', num(m.tiktokViews)],
+        ['TikTok Followers', num(m.tiktokFollowers)],
+        ['Posts Shipped', num(m.postsShipped)],
+        ['Total Ad Spend', m.totalAdSpend == null ? 'N/A' : '$' + num(m.totalAdSpend)],
+        ['Total Conversations', num(m.totalConversations)],
+      ];
+      return `<div class="grid-3">${items.map(([label, val]) =>
+        `<div class="card metric"><div class="num">${val}</div><div class="label">${label}</div></div>`
+      ).join('')}</div>`;
+    }
+
+    function renderTable(headers, rows, emptyMsg) {
+      if (!rows.length) return `<div class="empty">${emptyMsg}</div>`;
+      return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>` +
+        `<tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    }
+
+    function render(data) {
+      const r = data.currentReport;
+      const c = data.client;
+      const html = `
+        <header>
+          <h1>${esc(c.name)}</h1>
+          <p class="tagline">${esc(c.tagline)}</p>
+          <div class="meta">
+            <span>${esc(c.retainer)}</span>
+            <span>${esc(c.period)}</span>
+            <span>Team lead: ${esc(c.teamLead)}</span>
+          </div>
+        </header>
+
+        <h2>Strategy at a glance</h2>
+        <div class="card">
+          <p>${esc(data.strategy?.sentence || '')}</p>
+          ${data.strategy?.personas?.length ? `<p class="muted"><strong>Personas:</strong> ${data.strategy.personas.map(esc).join(' · ')}</p>` : ''}
+          ${data.strategy?.plan?.length ? `<ol>${data.strategy.plan.map(p => `<li>${esc(p)}</li>`).join('')}</ol>` : ''}
+        </div>
+
+        <h2>Weekly rhythm</h2>
+        <div class="grid-3">
+          ${(data.weeklyRhythm || []).map(w => `
+            <div class="card">
+              <h3>${esc(w.day)}</h3>
+              <div class="muted" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em;">${esc(w.type)}</div>
+              <p style="margin-top:8px">${esc(w.description)}</p>
+            </div>`).join('')}
+        </div>
+
+        <h2>Upcoming shoots</h2>
+        ${(data.shoots?.upcoming || []).length
+          ? `<div class="grid-2">${data.shoots.upcoming.map(s => `
+              <div class="card"><h3>${esc(s.name)}</h3>
+                <div class="muted">${fmtDate(s.date)} · ${esc(s.location)}</div></div>`).join('')}</div>`
+          : `<div class="empty">No shoots scheduled.</div>`}
+
+        <h2>Recent shoots</h2>
+        ${(data.shoots?.recent || []).length
+          ? `<div class="grid-2">${data.shoots.recent.map(s => `
+              <div class="card"><h3>${esc(s.name)}</h3>
+                <div class="muted">${fmtDate(s.date)} · ${esc(s.location)}</div></div>`).join('')}</div>`
+          : `<div class="empty">No recent shoots.</div>`}
+
+        <h2>In flight</h2>
+        ${renderTable(
+          ['', 'Category', 'Title', 'Status', 'Target'],
+          (data.inFlight || []).map(i => [esc(i.icon), esc(i.category), esc(i.title), esc(i.status), esc(i.target)]),
+          'Nothing in flight.'
+        )}
+
+        <h2>Recent content (last 30 days)</h2>
+        ${renderTable(
+          ['Date', 'Title', 'Format', 'Stage', 'Status'],
+          (data.recentContent || []).map(p => [fmtDate(p.date), esc(p.title), esc(p.format), esc(p.stage), esc(p.status)]),
+          'No recent posts logged in the Social Calendar.'
+        )}
+
+        <h2>Performance ${r ? `· ${esc(r.month)}` : ''} ${r ? statusPill(r.commitmentsMet) : ''}</h2>
+        ${r ? renderMetricCards(r.metrics) : `<div class="empty">No monthly report yet.</div>`}
+
+        ${r?.topPosts?.length ? `
+          <h2>Top posts</h2>
+          ${renderTable(
+            ['Rank', 'Title', 'Date', 'Reach', 'Engagement', 'Note'],
+            r.topPosts.map(p => [esc(p.rank), esc(p.title), esc(p.date), esc(p.reach), esc(p.engagement), esc(p.note)]),
+            ''
+          )}` : ''}
+
+        ${r?.audience ? `
+          <h2>Audience</h2>
+          <div class="card">
+            ${r.audience.summary ? `<p>${esc(r.audience.summary).replace(/\n\n/g,'</p><p>')}</p>` : ''}
+            ${r.audience.topCities?.length ? renderTable(
+              ['City', 'Followers'],
+              r.audience.topCities.map(c => [esc(c.city), esc(c.followers)]),
+              ''
+            ) : ''}
+          </div>` : ''}
+
+        ${r?.ads?.length ? `
+          <h2>Ads</h2>
+          ${renderTable(
+            ['Campaign', 'Spend', 'Result', 'Cost / Result'],
+            r.ads.map(a => [esc(a.campaign), esc(a.spend), esc(a.result), esc(a.costPerResult)]),
+            ''
+          )}
+          ${r.adsNote ? `<p class="muted">${esc(r.adsNote)}</p>` : ''}` : ''}
+
+        ${(r?.learned || r?.testingNext) ? `
+          <h2>What we learned</h2>
+          <div class="card">${esc(r.learned || '').replace(/\n\n/g,'<br><br>') || '<span class="muted">Pending.</span>'}</div>
+          <h2>What we're testing next</h2>
+          <div class="card">${esc(r.testingNext || '').replace(/\n\n/g,'<br><br>') || '<span class="muted">Pending.</span>'}</div>
+        ` : ''}
+
+        <h2>Waiting on you</h2>
+        ${(data.approvals || []).length
+          ? renderTable(
+              ['Item', 'Due', ''],
+              data.approvals.map(a => [esc(a.title), fmtDate(a.dueDate), `<a href="${esc(a.link)}" target="_blank" rel="noopener">Open</a>`]),
+              ''
+            )
+          : `<div class="empty">Nothing waiting on you right now.</div>`}
+
+        <footer>
+          ${c.frameioUrl && c.frameioUrl !== '#' ? `<a href="${esc(c.frameioUrl)}" target="_blank" rel="noopener">Frame.io</a>` : ''}
+          ${c.basecampUrl && c.basecampUrl !== '#' ? `<a href="${esc(c.basecampUrl)}" target="_blank" rel="noopener">Basecamp</a>` : ''}
+          <span>Backflip · ${esc(c.teamLead)}</span>
+        </footer>
+      `;
+      $('#app').innerHTML = html;
+    }
+
+    fetch('/api/client-dashboard/briana')
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(render)
+      .catch(err => {
+        $('#app').innerHTML = `<div class="center">Could not load dashboard data. Refresh in a moment.<br><br>
+          <small class="muted">If this persists, check the Sevalla logs and confirm NOTION_TOKEN is set
+          and the integration has access to each database.</small></div>`;
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
