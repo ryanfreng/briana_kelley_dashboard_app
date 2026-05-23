@@ -382,7 +382,7 @@ async function fetchApprovals(cfg) {
   return r.results.map(p => ({
     title:   getTitle(p),
     dueDate: p.properties?.['Due Date']?.date?.start || null,
-    link:    p.url,
+    link:    extractProp(p, 'URL', 'url') || p.url,
   }));
 }
 
