@@ -140,3 +140,6 @@ Report row in the Retainer Workbook each month. Within five minutes
   Media Calendar with the `🎉 Project` relation set to the project.
   Documented gap from the implementation guide; team needs to log
   every Backflip-driven post going forward.
+
+<!-- repo push/CI config verified 2026-05-23 -->
+
