@@ -151,16 +151,18 @@ async function assembleDashboard(cfg) {
     shoots,
     inFlight,
     recentContent,
+    upcomingContent,
     reports,
     approvals,
   ] = await Promise.all([
     safeSection('projectPage', () =>
       cfg.projectId ? notion.pages.retrieve({ page_id: cfg.projectId }) : Promise.resolve(null), null),
-    safeSection('shoots',         () => fetchShoots(cfg),         { upcoming: [], recent: [] }),
-    safeSection('inFlight',       () => fetchInFlight(cfg),       []),
-    safeSection('recentContent',  () => fetchRecentContent(cfg),  []),
-    safeSection('reports',        () => fetchReports(cfg),        { current: null, previous: null }),
-    safeSection('approvals',      () => fetchApprovals(cfg),      []),
+    safeSection('shoots',          () => fetchShoots(cfg),           { upcoming: [], recent: [] }),
+    safeSection('inFlight',        () => fetchInFlight(cfg),         []),
+    safeSection('recentContent',   () => fetchRecentContent(cfg),    []),
+    safeSection('upcomingContent', () => fetchUpcomingContent(cfg),  []),
+    safeSection('reports',         () => fetchReports(cfg),          { current: null, previous: null }),
+    safeSection('approvals',       () => fetchApprovals(cfg),        []),
   ]);
 
   return {
@@ -179,6 +181,7 @@ async function assembleDashboard(cfg) {
     shoots,
     inFlight,
     recentContent,
+    upcomingContent,
     currentReport: reports.current,
     previousReport: reports.previous,
     approvals,
@@ -253,29 +256,54 @@ async function fetchInFlight(cfg) {
 }
 
 // -------------------------------------------------------------
-// Social Calendar -> Recent Content (last 30 days)
+// Social Calendar -> Recent + Upcoming Content (±30 days)
 // -------------------------------------------------------------
 async function fetchRecentContent(cfg) {
   if (!cfg.socialCalDsId || !cfg.projectId) return [];
 
+  const today = new Date().toISOString().slice(0, 10);
   const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const r = await queryDataSource(cfg.socialCalDsId, {
     filter: {
       and: [
-        { property: '🎉 Project', relation: { contains: cfg.projectId } },
-        { property: 'Publish Date',         date:     { on_or_after: since } },
+        { property: '🎉 Project',   relation: { contains: cfg.projectId } },
+        { property: 'Publish Date', date:     { on_or_after:  since } },
+        { property: 'Publish Date', date:     { on_or_before: today } },
       ],
     },
-    sorts: [{ property: 'Publish Date', direction: 'descending' }],
+    sorts: [{ property: 'Publish Date', direction: 'ascending' }],
   });
 
-  return r.results.map(p => ({
+  return r.results.map(toSocialPost);
+}
+
+async function fetchUpcomingContent(cfg) {
+  if (!cfg.socialCalDsId || !cfg.projectId) return [];
+
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const until    = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const r = await queryDataSource(cfg.socialCalDsId, {
+    filter: {
+      and: [
+        { property: '🎉 Project',   relation: { contains: cfg.projectId } },
+        { property: 'Publish Date', date:     { on_or_after:  tomorrow } },
+        { property: 'Publish Date', date:     { on_or_before: until    } },
+      ],
+    },
+    sorts: [{ property: 'Publish Date', direction: 'ascending' }],
+  });
+
+  return r.results.map(toSocialPost);
+}
+
+function toSocialPost(p) {
+  return {
     date:   p.properties?.['Publish Date']?.date?.start || null,
     title:  getTitle(p),
     format: (p.properties?.['Type of Post']?.multi_select || []).map(t => t.name).join(', '),
     stage:  p.properties?.['Funnel Stage']?.select?.name || 'TBD',
     status: p.properties?.Status?.status?.name || 'Planned',
-  }));
+  };
 }
 
 // -------------------------------------------------------------

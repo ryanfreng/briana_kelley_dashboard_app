@@ -172,6 +172,13 @@
           'No recent posts logged in the Social Calendar.'
         )}
 
+        <h2>Upcoming content (next 30 days)</h2>
+        ${renderTable(
+          ['Date', 'Title', 'Format', 'Stage', 'Status'],
+          (data.upcomingContent || []).map(p => [fmtDate(p.date), esc(p.title), esc(p.format), esc(p.stage), esc(p.status)]),
+          'No upcoming posts scheduled in the Social Calendar.'
+        )}
+
         <h2>Performance ${r ? `· ${esc(r.month)}` : ''} ${r ? statusPill(r.commitmentsMet) : ''}</h2>
         ${r ? renderMetricCards(r.metrics) : `<div class="empty">No monthly report yet.</div>`}
 
