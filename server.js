@@ -481,9 +481,9 @@ async function readTableRows(tableBlockId) {
 function getStaticBrandscript() {
   return {
     sentence:
-      'Kelley Realty helps homeowners sell lake homes and $500K+ properties with a clear strategy ' +
-      'built before the home ever hits the market, so sellers walk away confident they received ' +
-      'the strongest possible outcome.',
+      'Briana Kelley Realty is the strategic listing partner for South Central Wisconsin homeowners. ' +
+      'Built for sellers who want the work happening before they have to ask, problems caught before ' +
+      'they land, and a sale that closes the way it was planned.',
     personas: [
       'Legacy Sellers (Roger & Linda)',
       'Remote Inheritor (Todd)',
