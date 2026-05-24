@@ -77,8 +77,14 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[c]));
-    const fmtDate = (s) => s ? new Date(s).toLocaleDateString('en-US',
-      { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    // Notion date-only strings ("2026-06-10") are parsed as UTC midnight by
+    // default, which shifts back a day in any timezone west of UTC. Parse
+    // those as local time; pass anything with an explicit time through as-is.
+    const fmtDate = (s) => {
+      if (!s) return '';
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
     const num = (n) => (n === null || n === undefined) ? 'N/A' : n.toLocaleString('en-US');
 
     function statusPill(s) {
