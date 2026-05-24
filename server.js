@@ -244,15 +244,17 @@ async function fetchInFlight(cfg) {
     .map(p => {
       const title = getTitle(p);
       const icon  = leadingIcon(title);
+      // Only strip the leading token if it's actually an emoji; otherwise
+      // we'd chop the first word off ordinary titles ("Quarterly review" → "review").
+      const cleanTitle = icon ? (title.replace(/^\S+\s*/, '').trim() || title) : title;
       return {
         icon,
-        category: iconToCategory(icon),
-        title: title.replace(/^\S+\s*/, '').trim() || title,
+        category: iconToCategory(icon) || '',
+        title: cleanTitle,
         status: extractProp(p, 'Description', 'rich_text') || 'In progress',
         target: formatDateRange(p.properties?.Deadline?.date),
       };
-    })
-    .filter(it => it.category); // drop unknown-icon (internal-only) items
+    });
 }
 
 // -------------------------------------------------------------
