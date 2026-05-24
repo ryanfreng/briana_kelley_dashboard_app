@@ -50,6 +50,20 @@
     .status-ontrack { background: #e3f1e8; color: var(--ontrack); }
     .status-watch { background: #fbf1d6; color: var(--watch); }
     .status-offtrack { background: #f7dad6; color: var(--offtrack); }
+    /* Notion-status pill: passes through the color the user picked in Notion */
+    .ns-pill {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 500;
+      background: #eef0f5; color: #4a5063;
+    }
+    .ns-brown  { background: #f1e5d8; color: #8b6240; }
+    .ns-orange { background: #fce2cc; color: #b56c2c; }
+    .ns-yellow { background: #fbf1d6; color: #8c6f1b; }
+    .ns-green  { background: #e3f1e8; color: var(--ontrack); }
+    .ns-blue   { background: #dde9f7; color: #2c5da6; }
+    .ns-purple { background: #ebdef7; color: #6638a8; }
+    .ns-pink   { background: #f7d8e4; color: #a8336d; }
+    .ns-red    { background: #f7dad6; color: var(--offtrack); }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; }
     th { font-weight: 600; color: var(--ink-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -91,6 +105,15 @@
       const cls = s === 'offtrack' ? 'offtrack' : s === 'watch' ? 'watch' : 'ontrack';
       const label = cls === 'offtrack' ? 'Off Track' : cls === 'watch' ? 'Watch' : 'On Track';
       return `<span class="status-pill status-${cls}">${label}</span>`;
+    }
+
+    // Notion gives us the color the user picked for a status option
+    // ('gray'/'brown'/'orange'/'yellow'/'green'/'blue'/'purple'/'pink'/'red'/'default').
+    // We render the name in a pill colored to match.
+    function notionStatusPill(name, color) {
+      if (!name) return '';
+      const safe = String(color || 'default').toLowerCase();
+      return `<span class="ns-pill ns-${safe}">${esc(name)}</span>`;
     }
 
     function renderMetricCards(m) {
@@ -190,7 +213,7 @@
         <h2>In Progress</h2>
         ${renderTable(
           ['Item', 'Due', 'Status'],
-          (data.inProgress || []).map(t => [esc(t.title), fmtDate(t.dueDate), esc(t.status)]),
+          (data.inProgress || []).map(t => [esc(t.title), fmtDate(t.dueDate), notionStatusPill(t.status, t.statusColor)]),
           'No Dashboard tasks in progress.'
         )}
 
