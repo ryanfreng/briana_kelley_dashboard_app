@@ -154,6 +154,7 @@ async function assembleDashboard(cfg) {
     upcomingContent,
     reports,
     approvals,
+    inProgress,
   ] = await Promise.all([
     safeSection('projectPage', () =>
       cfg.projectId ? notion.pages.retrieve({ page_id: cfg.projectId }) : Promise.resolve(null), null),
@@ -163,6 +164,7 @@ async function assembleDashboard(cfg) {
     safeSection('upcomingContent', () => fetchUpcomingContent(cfg),  []),
     safeSection('reports',         () => fetchReports(cfg),          { current: null, previous: null }),
     safeSection('approvals',       () => fetchApprovals(cfg),        []),
+    safeSection('inProgress',      () => fetchInProgress(cfg),       []),
   ]);
 
   return {
@@ -185,6 +187,7 @@ async function assembleDashboard(cfg) {
     currentReport: reports.current,
     previousReport: reports.previous,
     approvals,
+    inProgress,
   };
 }
 
@@ -366,7 +369,7 @@ async function assembleReport(page) {
 }
 
 // -------------------------------------------------------------
-// Tasks -> Waiting on Client
+// Tasks -> Waiting on Client  (renders as "Needs Feedback")
 // -------------------------------------------------------------
 async function fetchApprovals(cfg) {
   if (!cfg.tasksDsId || !cfg.projectId) return [];
@@ -384,6 +387,31 @@ async function fetchApprovals(cfg) {
   return r.results.map(p => ({
     title:   getTitle(p),
     dueDate: p.properties?.['Due Date']?.date?.start || null,
+    link:    extractProp(p, 'URL', 'url') || p.url,
+  }));
+}
+
+// -------------------------------------------------------------
+// Tasks -> In Progress  (Dashboard-tagged, not Done)
+// -------------------------------------------------------------
+async function fetchInProgress(cfg) {
+  if (!cfg.tasksDsId || !cfg.projectId) return [];
+
+  const r = await queryDataSource(cfg.tasksDsId, {
+    filter: {
+      and: [
+        { property: 'Project', relation:     { contains: cfg.projectId } },
+        { property: 'Tags',    multi_select: { contains: 'Dashboard' } },
+        { property: 'Status',  status:       { does_not_equal: 'Done' } },
+      ],
+    },
+    sorts: [{ property: 'Due Date', direction: 'ascending' }],
+  });
+
+  return r.results.map(p => ({
+    title:   getTitle(p),
+    dueDate: p.properties?.['Due Date']?.date?.start || null,
+    status:  p.properties?.Status?.status?.name || '',
     link:    extractProp(p, 'URL', 'url') || p.url,
   }));
 }
