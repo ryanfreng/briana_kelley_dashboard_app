@@ -171,6 +171,22 @@
           'Nothing in flight.'
         )}
 
+        <h2>Needs Feedback</h2>
+        ${(data.approvals || []).length
+          ? renderTable(
+              ['Item', 'Due', ''],
+              data.approvals.map(a => [esc(a.title), fmtDate(a.dueDate), `<a href="${esc(a.link)}" target="_blank" rel="noopener">Open</a>`]),
+              ''
+            )
+          : `<div class="empty">Nothing waiting on Briana's feedback right now.</div>`}
+
+        <h2>In Progress</h2>
+        ${renderTable(
+          ['Item', 'Due', 'Status', ''],
+          (data.inProgress || []).map(t => [esc(t.title), fmtDate(t.dueDate), esc(t.status), `<a href="${esc(t.link)}" target="_blank" rel="noopener">Open</a>`]),
+          'No Dashboard tasks in progress.'
+        )}
+
         <h2>Recent content (last 30 days)</h2>
         ${renderTable(
           ['Date', 'Title', 'Format', 'Stage', 'Status'],
@@ -222,15 +238,6 @@
           <h2>What we're testing next</h2>
           <div class="card">${esc(r.testingNext || '').replace(/\n\n/g,'<br><br>') || '<span class="muted">Pending.</span>'}</div>
         ` : ''}
-
-        <h2>Waiting on you</h2>
-        ${(data.approvals || []).length
-          ? renderTable(
-              ['Item', 'Due', ''],
-              data.approvals.map(a => [esc(a.title), fmtDate(a.dueDate), `<a href="${esc(a.link)}" target="_blank" rel="noopener">Open</a>`]),
-              ''
-            )
-          : `<div class="empty">Nothing waiting on you right now.</div>`}
 
         <footer>
           ${c.frameioUrl && c.frameioUrl !== '#' ? `<a href="${esc(c.frameioUrl)}" target="_blank" rel="noopener">Frame.io</a>` : ''}
