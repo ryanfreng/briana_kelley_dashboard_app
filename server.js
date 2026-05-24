@@ -397,15 +397,18 @@ async function fetchApprovals(cfg) {
 async function fetchInProgress(cfg) {
   if (!cfg.tasksDsId || !cfg.projectId) return [];
 
-  // Filter Project + Status server-side. The Dashboard tag check is done
-  // client-side below because the server-side multi_select filter wasn't
-  // matching against this DB's Tags property; iterating the values directly
-  // is robust against whatever's tripping up the API filter.
+  // Filter Project + Done-checkbox server-side. "Not done" in this DB is the
+  // `Done` checkbox being unchecked — `Status` is a separate property with
+  // values like Inbox/In progress/etc., and has no option literally named
+  // "Done", so a Status-based filter for "Done" returns zero results.
+  //
+  // The Dashboard tag check is done client-side below because the server-side
+  // multi_select filter wasn't matching against this DB's Tags property.
   const r = await queryDataSource(cfg.tasksDsId, {
     filter: {
       and: [
         { property: 'Project', relation: { contains: cfg.projectId } },
-        { property: 'Status',  status:   { does_not_equal: 'Done' } },
+        { property: 'Done',    checkbox: { equals: false } },
       ],
     },
     sorts: [{ property: 'Due Date', direction: 'ascending' }],
