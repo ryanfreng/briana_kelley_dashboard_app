@@ -397,23 +397,28 @@ async function fetchApprovals(cfg) {
 async function fetchInProgress(cfg) {
   if (!cfg.tasksDsId || !cfg.projectId) return [];
 
+  // Filter Project + Status server-side. The Dashboard tag check is done
+  // client-side below because the server-side multi_select filter wasn't
+  // matching against this DB's Tags property; iterating the values directly
+  // is robust against whatever's tripping up the API filter.
   const r = await queryDataSource(cfg.tasksDsId, {
     filter: {
       and: [
-        { property: 'Project', relation:     { contains: cfg.projectId } },
-        { property: 'Tags',    multi_select: { contains: 'Dashboard' } },
-        { property: 'Status',  status:       { does_not_equal: 'Done' } },
+        { property: 'Project', relation: { contains: cfg.projectId } },
+        { property: 'Status',  status:   { does_not_equal: 'Done' } },
       ],
     },
     sorts: [{ property: 'Due Date', direction: 'ascending' }],
   });
 
-  return r.results.map(p => ({
-    title:   getTitle(p),
-    dueDate: p.properties?.['Due Date']?.date?.start || null,
-    status:  p.properties?.Status?.status?.name || '',
-    link:    extractProp(p, 'URL', 'url') || p.url,
-  }));
+  return r.results
+    .filter(p => (p.properties?.Tags?.multi_select || []).some(t => t.name === 'Dashboard'))
+    .map(p => ({
+      title:   getTitle(p),
+      dueDate: p.properties?.['Due Date']?.date?.start || null,
+      status:  p.properties?.Status?.status?.name || '',
+      link:    extractProp(p, 'URL', 'url') || p.url,
+    }));
 }
 
 // =============================================================
