@@ -420,9 +420,10 @@ async function fetchInProgress(cfg) {
   return r.results
     .filter(p => (p.properties?.Tags?.multi_select || []).some(t => t.name === 'Dashboard'))
     .map(p => ({
-      title:   getTitle(p),
-      dueDate: p.properties?.['Due Date']?.date?.start || null,
-      status:  p.properties?.Status?.status?.name || '',
+      title:       getTitle(p),
+      dueDate:     p.properties?.['Due Date']?.date?.start || null,
+      status:      p.properties?.Status?.status?.name || '',
+      statusColor: p.properties?.Status?.status?.color || 'default',
     }));
 }
 
