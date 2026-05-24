@@ -151,6 +151,15 @@
                 <div class="muted">${fmtDate(s.date)} · ${esc(s.location)}</div></div>`).join('')}</div>`
           : `<div class="empty">No shoots scheduled.</div>`}
 
+        <h2>Briana's Todos</h2>
+        ${(data.approvals || []).length
+          ? renderTable(
+              ['Item', 'Due', ''],
+              data.approvals.map(a => [esc(a.title), fmtDate(a.dueDate), `<a href="${esc(a.link)}" target="_blank" rel="noopener">Open</a>`]),
+              ''
+            )
+          : `<div class="empty">Briana has no open Todos right now.</div>`}
+
         <h2>Recent shoots</h2>
         ${(data.shoots?.recent || []).length
           ? `<div class="grid-2">${data.shoots.recent.map(s => `
@@ -216,15 +225,6 @@
           <h2>What we're testing next</h2>
           <div class="card">${esc(r.testingNext || '').replace(/\n\n/g,'<br><br>') || '<span class="muted">Pending.</span>'}</div>
         ` : ''}
-
-        <h2>Waiting on you</h2>
-        ${(data.approvals || []).length
-          ? renderTable(
-              ['Item', 'Due', ''],
-              data.approvals.map(a => [esc(a.title), fmtDate(a.dueDate), `<a href="${esc(a.link)}" target="_blank" rel="noopener">Open</a>`]),
-              ''
-            )
-          : `<div class="empty">Nothing waiting on you right now.</div>`}
 
         <footer>
           ${c.frameioUrl && c.frameioUrl !== '#' ? `<a href="${esc(c.frameioUrl)}" target="_blank" rel="noopener">Frame.io</a>` : ''}
