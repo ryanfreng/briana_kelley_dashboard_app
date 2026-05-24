@@ -140,6 +140,13 @@
           ${data.strategy?.plan?.length ? `<ol>${data.strategy.plan.map(p => `<li>${esc(p)}</li>`).join('')}</ol>` : ''}
         </div>
 
+        <h2>Current Focus</h2>
+        <div class="card">
+          ${(data.currentFocus || []).length
+            ? `<ol>${data.currentFocus.map(item => `<li>${esc(item)}</li>`).join('')}</ol>`
+            : '<span class="muted">No current focus set on the project page.</span>'}
+        </div>
+
         <h2>Weekly rhythm</h2>
         <div class="grid-3">
           ${(data.weeklyRhythm || []).map(w => `
@@ -182,8 +189,8 @@
 
         <h2>In Progress</h2>
         ${renderTable(
-          ['Item', 'Due', 'Status', ''],
-          (data.inProgress || []).map(t => [esc(t.title), fmtDate(t.dueDate), esc(t.status), `<a href="${esc(t.link)}" target="_blank" rel="noopener">Open</a>`]),
+          ['Item', 'Due', 'Status'],
+          (data.inProgress || []).map(t => [esc(t.title), fmtDate(t.dueDate), esc(t.status)]),
           'No Dashboard tasks in progress.'
         )}
 

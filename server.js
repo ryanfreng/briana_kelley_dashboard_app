@@ -148,6 +148,7 @@ app.listen(PORT, () => {
 async function assembleDashboard(cfg) {
   const [
     projectPage,
+    currentFocus,
     shoots,
     inFlight,
     recentContent,
@@ -158,6 +159,7 @@ async function assembleDashboard(cfg) {
   ] = await Promise.all([
     safeSection('projectPage', () =>
       cfg.projectId ? notion.pages.retrieve({ page_id: cfg.projectId }) : Promise.resolve(null), null),
+    safeSection('currentFocus',    () => fetchCurrentFocus(cfg),     []),
     safeSection('shoots',          () => fetchShoots(cfg),           { upcoming: [], recent: [] }),
     safeSection('inFlight',        () => fetchInFlight(cfg),         []),
     safeSection('recentContent',   () => fetchRecentContent(cfg),    []),
@@ -178,6 +180,7 @@ async function assembleDashboard(cfg) {
       basecampUrl: extractProp(projectPage, 'Basecamp URL', 'url') || '#',
     },
     strategy: getStaticBrandscript(),
+    currentFocus,
     weeklyRhythm: getStaticWeeklyRhythm(),
     campaignProgress: [],
     shoots,
@@ -420,8 +423,49 @@ async function fetchInProgress(cfg) {
       title:   getTitle(p),
       dueDate: p.properties?.['Due Date']?.date?.start || null,
       status:  p.properties?.Status?.status?.name || '',
-      link:    extractProp(p, 'URL', 'url') || p.url,
     }));
+}
+
+// -------------------------------------------------------------
+// Project page -> Current Focus
+// Finds a "Current Focus" heading_2 on the project page (top-level
+// or nested inside a callout/toggle) and collects the numbered or
+// bulleted list items that follow it.
+// -------------------------------------------------------------
+async function fetchCurrentFocus(cfg) {
+  if (!cfg.projectId) return [];
+
+  const topBlocks = await fetchBlockChildren(cfg.projectId);
+
+  // Search top level first, then inside any callout/toggle children.
+  const searchSpaces = [topBlocks];
+  for (const b of topBlocks) {
+    if ((b.type === 'callout' || b.type === 'toggle') && b.has_children) {
+      searchSpaces.push(await fetchBlockChildren(b.id));
+    }
+  }
+
+  for (const blocks of searchSpaces) {
+    const items = extractCurrentFocusItems(blocks);
+    if (items.length) return items;
+  }
+  return [];
+}
+
+function extractCurrentFocusItems(blocks) {
+  const items = [];
+  let inSection = false;
+  for (const b of blocks) {
+    if (b.type === 'heading_2') {
+      const text = (b.heading_2.rich_text || []).map(t => t.plain_text).join('').trim();
+      if (text === 'Current Focus') { inSection = true; continue; }
+      if (inSection) break; // next heading_2 ends the section
+    } else if (inSection && (b.type === 'numbered_list_item' || b.type === 'bulleted_list_item')) {
+      const text = (b[b.type].rich_text || []).map(t => t.plain_text).join('').trim();
+      if (text) items.push(text);
+    }
+  }
+  return items;
 }
 
 // =============================================================
