@@ -43,6 +43,12 @@
     @media (max-width: 720px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
     .metric .num { font-size: 28px; font-weight: 600; }
     .metric .label { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .metric-pending { text-align: center; padding: 32px 24px; }
+    .metric-pending-icon { font-size: 36px; line-height: 1; margin-bottom: 8px; opacity: 0.85; }
+    .metric-pending-title {
+      font-size: 14px; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--ink); margin-bottom: 4px;
+    }
     .status-pill {
       display: inline-block; padding: 2px 10px; border-radius: 999px;
       font-size: 12px; font-weight: 600;
@@ -118,22 +124,32 @@
 
     function renderMetricCards(m) {
       if (!m) return '';
+      // Raw values; missing/blank metrics in Notion come through as null.
       const items = [
-        ['FB Reach', num(m.fbReach)],
-        ['FB Impressions', num(m.fbImpressions)],
-        ['FB Engagement', num(m.fbEngagement)],
-        ['FB Followers', num(m.fbFollowers)],
-        ['IG Followers', num(m.igFollowers)],
-        ['IG Engagement', num(m.igEngagement)],
-        ['TikTok Views', num(m.tiktokViews)],
-        ['TikTok Followers', num(m.tiktokFollowers)],
-        ['Posts Shipped', num(m.postsShipped)],
-        ['Total Ad Spend', m.totalAdSpend == null ? 'N/A' : '$' + num(m.totalAdSpend)],
-        ['Total Conversations', num(m.totalConversations)],
+        ['FB Reach',            m.fbReach],
+        ['FB Impressions',      m.fbImpressions],
+        ['FB Engagement',       m.fbEngagement],
+        ['FB Followers',        m.fbFollowers],
+        ['IG Followers',        m.igFollowers],
+        ['IG Engagement',       m.igEngagement],
+        ['TikTok Views',        m.tiktokViews],
+        ['TikTok Followers',    m.tiktokFollowers],
+        ['Posts Shipped',       m.postsShipped],
+        ['Total Ad Spend',      m.totalAdSpend],
+        ['Total Conversations', m.totalConversations],
       ];
-      return `<div class="grid-3">${items.map(([label, val]) =>
-        `<div class="card metric"><div class="num">${val}</div><div class="label">${label}</div></div>`
-      ).join('')}</div>`;
+      const populated = items.filter(([, v]) => v !== null && v !== undefined);
+      if (populated.length === 0) {
+        return `<div class="card metric-pending">
+          <div class="metric-pending-icon">📊</div>
+          <div class="metric-pending-title">Connection pending</div>
+          <div class="muted">Metrics will appear here once this month's report is filled in.</div>
+        </div>`;
+      }
+      return `<div class="grid-3">${populated.map(([label, val]) => {
+        const display = label === 'Total Ad Spend' ? '$' + num(val) : num(val);
+        return `<div class="card metric"><div class="num">${display}</div><div class="label">${label}</div></div>`;
+      }).join('')}</div>`;
     }
 
     function renderTable(headers, rows, emptyMsg) {
